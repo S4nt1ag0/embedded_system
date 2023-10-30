@@ -1,5 +1,6 @@
 #include "camadaHardware.h" // This library allows you to communicate with I2C devices.
 #include <math.h> // This library is for calculate abs value of average - current value
+#include <WiFi.h>
 
 hw_timer_t *My_timer = NULL;
 
@@ -30,11 +31,6 @@ void read_accelerometer() {
 
   read_i2c_MPU_6050(MPU_ADDRESS, MPU_FULL_SCALE_RANGE);
 
-  accelerometer_x = readed_i2c[0];
-  accelerometer_y = readed_i2c[1];
-  accelerometer_z = readed_i2c[2];
-  Serial.println();
-  
   detect_fall(readed_i2c[1]);
 
 }
@@ -76,10 +72,78 @@ void config_emergencyButton() {
   attachInterrupt(digitalPinToInterrupt(EMERGENCY_BUTTON_PIN), button_emergency_pressed, FALLING); // Configura a interrupção para ocorrer na transição de HIGH para LOW
 }
 
+void configWifi(){
+    while(!Serial){delay(100);}
+
+    // We start by connecting to a WiFi network
+
+    Serial.println();
+    Serial.println("******************************************************");
+    Serial.print("Connecting to ");
+    Serial.println(ssid);
+
+    WiFi.begin(ssid, password);
+
+    while (WiFi.status() != WL_CONNECTED) {
+        delay(500);
+        Serial.print(".");
+    }
+
+    Serial.println("");
+    Serial.println("WiFi connected");
+    Serial.println("IP address: ");
+    Serial.println(WiFi.localIP());
+}
+
+void readResponse(WiFiClient *client){
+  unsigned long timeout = millis();
+  while(client->available() == 0){
+    if(millis() - timeout > 5000){
+      Serial.println(">>> Client Timeout !");
+      client->stop();
+      return;
+    }
+  }
+
+  // Read all the lines of the reply from server and print them to Serial
+  while(client->available()) {
+    String line = client->readStringUntil('\r');
+    Serial.print(line);
+  }
+
+  Serial.printf("\nClosing connection\n\n");
+}
+
+int status = WL_IDLE_STATUS;
+void sendMensageToServer(String message){
+//  status = WiFi.begin(ssid, password);
+   while (WiFi.status() != WL_CONNECTED) {
+      delay(500);
+      Serial.print(".");
+  }
+  WiFiClient client;
+  String footer = String(" HTTP/1.1\r\n") + "Host: " + String(host) + "\r\n" + "Connection: close\r\n\r\n";
+
+  // WRITE --------------------------------------------------------------------------------------------
+  if (!client.connect(host, httpPort)) {
+    Serial.printf("\nNot Conected\n\n");
+    return;
+  }
+
+  client.print("GET /update?api_key=" + writeApiKey + "&field1=" + field1 + "&message=" + message + footer);
+  readResponse(&client);
+
+  // -------------------------------------------------------------------------------------------------
+
+  ++field1;
+}
+
 void send_fall_notification() {
   Serial.println("queda detectada");
+  sendMensageToServer("queda_detectada");
 }
 
 void send_emergency_notification() {
-  Serial.println("emergencia detectada");
+  Serial.println("emergencia_detectada");
+  sendMensageToServer("emergencia_detectada");
 }

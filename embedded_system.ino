@@ -1,9 +1,11 @@
 #include "globalVars.h"
 #include "camadaSystem.h"
+
 void setup() {
   Serial.begin(9600);
   config_fallDetect();
   config_emergencyButton();
+  configWifi();
 }
 
 void loop() {
